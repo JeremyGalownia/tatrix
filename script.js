@@ -1,6 +1,6 @@
 function formatConfig(cfg) {
-	const { rows, cols, gap, cellSize, padding, color } = cfg;
-	const { t, b, l, r } = cfg.chars;
+	const { rows, cols, gap, cellSize, padding, color } = cfg ?? {};
+	const { t, b, l, r } = cfg.chars ?? {};
 	return {
 		rows: typeof rows === "number" ? rows : "fit",
 		cols: typeof cols === "number" ? cols : "fit",
