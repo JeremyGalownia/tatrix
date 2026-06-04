@@ -1,20 +1,31 @@
-function formatConfig(cfg) {
-	const { rows, cols, gap, cellSize, padding, color } = cfg ?? {};
-	const { t, b, l, r } = cfg.chars ?? {};
+function formatConfig(cfg = {}) {
+	let { rows, cols, gap, cellSize, padding, color } = cfg;
+	let { t, b, l, r, c } = cfg.chars ?? {};
+
+	rows = typeof rows === "number" ? Math.max(1, rows) : "fit";
+	cols = typeof cols === "number" ? Math.max(1, cols) : "fit";
+
+	gap = typeof gap === "number" ? Math.max(0.1, gap) : "auto";
+
+	cellSize = typeof cellSize === "number" ? Math.max(1, cellSize) : 50;
+	padding = typeof padding === "number" ? Math.max(0, padding) : 10;
+
+	if (typeof color !== "string") color = "#777";
+
+	if (typeof t !== "string") t = "│";
+	if (typeof b !== "string") b = "╱";
+	if (typeof l !== "string") l = "╲";
+	if (typeof r !== "string") r = "─";
+	if (typeof c !== "string") c = "☐";
+
 	return {
-		rows: typeof rows === "number" ? rows : "fit",
-		cols: typeof cols === "number" ? cols : "fit",
-		gap: typeof gap === "number" ? gap : "auto",
-		cellSize: typeof cellSize === "number" ? cellSize : 50,
-		padding: typeof padding === "number" ? padding : 10,
-		color: typeof color === "string" ? color : "#777",
-		
-		chars: {
-			t: typeof t === "string" ? t : "│",
-			b: typeof b === "string" ? b : "╱",
-			l: typeof l === "string" ? l : "╲",
-			r: typeof r === "string" ? r : "─"
-		}
+		rows,
+		cols,
+		gap,
+		cellSize,
+		padding,
+		color,
+		chars: { t, b, l, r, c },
 	};
 }
 
@@ -111,11 +122,11 @@ class Tatrix {
 		for (let i = 0; i < this.state.rows; i++) {
 			this.cells[i] = [];
 			for (let j = 0; j < this.state.cols; j++) {
-				const cell = document.createElement("div");
-				const span = document.createElement("span");
-				span.textContent = `${i},${j}`;
+				const cell = document.createElement("span");
+				// const span = document.createElement("span");
+				cell.textContent = `${i},${j}`;
 				cell.classList.add(`c${i}${j}`, "cell");
-				cell.appendChild(span);
+				// cell.appendChild(span);
 				this.container.appendChild(cell);
 				this.cells[i].push(cell);
 			}
@@ -144,7 +155,8 @@ class Tatrix {
 
 		const gapW = (availableW - cols * cellSize) / (cols - 1);
 		const gapH = (availableH - rows * cellSize) / (rows - 1);
-		return Math.min(gapW, gapH);
+		const gap = Math.min(gapW, gapH);
+		return gap < 0.1 ? 0 : gap;
 	}
 }
 
