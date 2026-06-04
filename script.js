@@ -1,136 +1,142 @@
-const DEFAULT_CONFIG = {
-  rows: "fit",
-  cols: "fit",
-  gap: "auto",
-  cellSize: 50,
-  padding: 10,
-  color: "#777",
-};
+function formatConfig(cfg) {
+	return {
+		rows: typeof cfg.rows === "number" ? cfg.rows : "fit",
+		cols: typeof cfg.cols === "number" ? cfg.cols : "fit",
+		gap: typeof cfg.gap === "number" ? cfg.gap : "auto",
+		cellSize: typeof cfg.cellSize === "number" ? cfg.cellSize : 50,
+		padding: typeof cfg.padding === "number" ? cfg.padding : 10,
+		color: typeof cfg.color === "string" ? cfg.color : "#777",
+	};
+}
+
+function injectStyles() {
+	if (document.getElementById("tatrix-styles")) return;
+
+	const style = document.createElement("style");
+	style.id = "tatrix-styles";
+	style.textContent = `
+    	.tatrix-grid {
+      		display: grid;
+      		grid-template-rows: repeat(var(--rows), var(--cell-size));
+      		grid-template-columns: repeat(var(--cols), var(--cell-size));
+      		color: var(--color);
+      		gap: var(--gap);
+      		padding: var(--padding);
+
+      		.cell {
+      			display: grid;
+      			place-items: center;
+      			width: var(--cell-size);
+      			height: var(--cell-size);
+      			border: 1px solid #222;
+      		}
+      	}
+      	`;
+	document.head.appendChild(style);
+}
 
 class Tatrix {
-  constructor(container, config = DEFAULT_CONFIG) {
-    if (typeof container === "string")
-      this.container = document.querySelector(container);
-    else if (container instanceof HTMLElement) this.container = container;
-    if (!this.container) throw new Error("container is required");
-    this.container.classList.add("tatrix-grid");
+	constructor(container, config = {}) {
+		this.container =
+			typeof container === "string"
+				? document.querySelector(container)
+				: container instanceof HTMLElement
+					? container
+					: null;
 
-    this.cols = null;
-    this.rows = null;
-    this.cellSize = null;
-    this.gap = null;
-    this.padding = null;
-    this.cells = [];
+		if (!this.container) throw new Error("container is required");
 
-    this.config = { ...DEFAULT_CONFIG, ...config };
-    this.setConfig(this.config);
-    this.injectStyle();
-    this.updateLayout();
-  }
+		injectStyles();
 
-  _calculateGap() {
-    const availableW = this.container.clientWidth - this.padding * 2;
-    const availableH = this.container.clientHeight - this.padding * 2;
+		this.container.classList.add("tatrix-grid");
+		this.config = formatConfig(config);
+		this.state = {};
+		this.cells = [];
+		this.setConfig(this.config);
+		this.updateLayout();
+	}
 
-    const gapW = (availableW - this.cols * this.cellSize) / (this.cols - 1);
-    const gapH = (availableH - this.rows * this.cellSize) / (this.rows - 1);
-    console.log(gapW, gapH);
-    return Math.min(gapW, gapH);
-  }
+	setConfig(cfg = {}) {
+		if (cfg === null) return;
+		const config = formatConfig(cfg);
+		if (config === this.config) return;
+		this.config = config;
 
-  setConfig(config = {}) {
-    if (config === null) return;
-    const { rows, cols, cellSize, padding, color, width, height, gap } = config;
+		const { cellSize, padding, color } = config;
+		const { rows, cols } = this._getDimensions();
 
-    if (typeof cellSize === "number" && cellSize > 0) this.cellSize = cellSize;
-    if (typeof padding === "number" && padding >= 0) this.padding = padding;
-    if (typeof color === "string") this.color = color;
+		this.state = {
+			...this.state,
+			cellSize,
+			padding,
+			color,
+			rows,
+			cols,
+			gap:
+				config.gap === "auto"
+					? this._calculateGap(padding, cellSize, rows, cols)
+					: config.gap,
+		};
 
-    if (typeof width === "string" || typeof width === "number")
-      this.width = width;
-    if (typeof height === "string" || typeof height === "number")
-      this.height = height;
+		console.log(this.state);
+		this.updateLayout();
+	}
 
-    const formattedRows = this._formatDimension(rows, "rows");
-    const formattedCols = this._formatDimension(cols, "cols");
+	updateLayout() {
+		this.container.innerHTML = "";
+		this.cells = [];
 
-    if (formattedRows !== null) this.rows = formattedRows;
-    if (formattedCols !== null) this.cols = formattedCols;
+		this.container.style.setProperty("--rows", this.state.rows);
+		this.container.style.setProperty("--cols", this.state.cols);
+		this.container.style.setProperty(
+			"--cell-size",
+			`${this.state.cellSize}px`,
+		);
+		this.container.style.setProperty("--gap", `${this.state.gap}px`);
+		this.container.style.setProperty(
+			"--padding",
+			`${this.state.padding}px`,
+		);
+		this.container.style.setProperty("--color", this.state.color);
 
-    if (this.gap === null) this.gap = this._calculateGap();
+		for (let i = 0; i < this.state.rows; i++) {
+			this.cells[i] = [];
+			for (let j = 0; j < this.state.cols; j++) {
+				const cell = document.createElement("div");
+				const span = document.createElement("span");
+				span.textContent = `${i},${j}`;
+				cell.classList.add(`c${i}${j}`, "cell");
+				cell.appendChild(span);
+				this.container.appendChild(cell);
+				this.cells[i].push(cell);
+			}
+		}
+	}
 
-    console.log(
-      this.rows,
-      this.cols,
-      this.cellSize,
-      this.padding,
-      this.color,
-      this.gap,
-    );
-  }
+	_getDimensions() {
+		const { rows, cols, padding, cellSize } = this.config;
 
-  injectStyle() {
-    if (document.getElementById("tatrix-styles")) return;
-    const style = document.createElement("style");
-    style.id = "tatrix-styles";
-    style.textContent = `
-    .tatrix-grid {
-      display: grid;
-      grid-template-rows: repeat(var(--rows), var(--cell-size));
-      grid-template-columns: repeat(var(--cols), var(--cell-size));
-      color: var(--color);
-      gap: var(--gap);
-      padding: var(--padding);
+		const availableW = this.container.clientWidth - padding * 2;
+		const availableH = this.container.clientHeight - padding * 2;
 
-      .cell {
-        display: grid;
-        place-items: center;
-        width: ${this.cellSize}px;
-        height: ${this.cellSize}px;
-        border: 1px solid #222;
-      }
-    }
-    `;
-    document.head.appendChild(style);
-  }
+		const gotRows =
+			rows === "fit" ? Math.floor(availableH / cellSize) : rows;
+		const gotCols =
+			cols === "fit" ? Math.floor(availableW / cellSize) : cols;
 
-  updateLayout() {
-    this.container.innerHTML = "";
-    this.cells = [];
+		return { rows: gotRows, cols: gotCols };
+	}
 
-    this.container.style.setProperty("--rows", this.rows);
-    this.container.style.setProperty("--cols", this.cols);
-    this.container.style.setProperty("--cell-size", `${this.cellSize}px`);
-    this.container.style.setProperty("--gap", `${this.gap}px`);
-    this.container.style.setProperty("--padding", `${this.padding}px`);
-    this.container.style.setProperty("--color", this.color);
+	_calculateGap(padding, cellSize, rows, cols) {
+		if (rows <= 1 || cols <= 1) return 0;
 
-    for (let i = 0; i < this.rows; i++) {
-      this.cells[i] = [];
-      for (let j = 0; j < this.cols; j++) {
-        const cell = document.createElement("div");
-        const span = document.createElement("span");
-        span.textContent = `${i},${j}`;
-        cell.classList.add(`c${i}${j}`, "cell");
-        cell.appendChild(span);
-        this.container.appendChild(cell);
-        this.cells[i].push(cell);
-      }
-    }
-  }
+		const availableW = this.container.clientWidth - padding * 2;
+		const availableH = this.container.clientHeight - padding * 2;
 
-  _formatDimension(val, type) {
-    const length =
-      type === "rows"
-        ? this.container.clientHeight
-        : this.container.clientWidth;
-
-    const available = length - 2 * this.padding;
-    const gap = parseInt(this.gap) || 0;
-    if (val === "fit") return Math.floor(available / this.cellSize)
-    if (typeof val === "number" && val > 0) return val;
-    return null;
-  }
+		const gapW = (availableW - cols * cellSize) / (cols - 1);
+		const gapH = (availableH - rows * cellSize) / (rows - 1);
+		return Math.min(gapW, gapH);
+	}
 }
 
 const tatrix = new Tatrix("#grid");
