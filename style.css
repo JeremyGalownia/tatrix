@@ -1,0 +1,22 @@
+:root {
+    --bg: #000
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    
+    height: 100%;
+    width: 100%
+}
+
+#grid {
+    background-color: var(--bg);
+    border: 1px solid red;
+    width: 130px;
+    height: 130px;
+}
