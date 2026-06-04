@@ -74,13 +74,13 @@ class Tatrix {
     const style = document.createElement("style");
     style.id = "tatrix-styles";
     style.textContent = `
-      .tatrix-grid {
-        display: grid;
-        grid-template-rows: repeat(var(--rows), var(--cell-size));
-        grid-template-columns: repeat(var(--cols), var(--cell-size));
-        color: var(--color);
-        gap: var(--gap);
-        padding: var(--padding);
+    .tatrix-grid {
+      display: grid;
+      grid-template-rows: repeat(var(--rows), var(--cell-size));
+      grid-template-columns: repeat(var(--cols), var(--cell-size));
+      color: var(--color);
+      gap: var(--gap);
+      padding: var(--padding);
 
       .cell {
         display: grid;
