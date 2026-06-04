@@ -1,11 +1,20 @@
 function formatConfig(cfg) {
+	const { rows, cols, gap, cellSize, padding, color } = cfg;
+	const { t, b, l, r } = cfg.chars;
 	return {
-		rows: typeof cfg.rows === "number" ? cfg.rows : "fit",
-		cols: typeof cfg.cols === "number" ? cfg.cols : "fit",
-		gap: typeof cfg.gap === "number" ? cfg.gap : "auto",
-		cellSize: typeof cfg.cellSize === "number" ? cfg.cellSize : 50,
-		padding: typeof cfg.padding === "number" ? cfg.padding : 10,
-		color: typeof cfg.color === "string" ? cfg.color : "#777",
+		rows: typeof rows === "number" ? rows : "fit",
+		cols: typeof cols === "number" ? cols : "fit",
+		gap: typeof gap === "number" ? gap : "auto",
+		cellSize: typeof cellSize === "number" ? cellSize : 50,
+		padding: typeof padding === "number" ? padding : 10,
+		color: typeof color === "string" ? color : "#777",
+		
+		chars: {
+			t: typeof t === "string" ? t : "│",
+			b: typeof b === "string" ? b : "╱",
+			l: typeof l === "string" ? l : "╲",
+			r: typeof r === "string" ? r : "─"
+		}
 	};
 }
 
