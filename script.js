@@ -1,5 +1,5 @@
 function formatConfig(cfg = {}) {
-	let { rows, cols, gap, cellSize, padding, color } = cfg;
+	let { rows, cols, gap, cellSize, padding, color, center } = cfg;
 	let { t, b, l, r, c } = cfg.chars ?? {};
 
 	rows = typeof rows === "number" ? Math.max(1, rows) : "fit";
@@ -7,8 +7,21 @@ function formatConfig(cfg = {}) {
 
 	gap = typeof gap === "number" ? Math.max(0.1, gap) : "auto";
 
-	cellSize = typeof cellSize === "number" ? Math.max(1, cellSize) : 50;
-	padding = typeof padding === "number" ? Math.max(0, padding) : 10;
+	cellSize =
+		typeof cellSize === "number"
+			? Math.max(10, cellSize)
+			: cellSize !== "auto"
+				? 50
+				: "auto";
+
+	padding =
+		typeof padding === "number"
+			? Math.max(0, padding)
+			: padding !== "auto"
+				? 10
+				: "auto";
+
+	center = typeof center === "boolean" ? center : false;
 
 	if (typeof color !== "string") color = "#777";
 
@@ -25,6 +38,7 @@ function formatConfig(cfg = {}) {
 		cellSize,
 		padding,
 		color,
+		center,
 		chars: { t, b, l, r, c },
 	};
 }
@@ -42,13 +56,17 @@ function injectStyles() {
       		color: var(--color);
       		gap: var(--gap);
       		padding: var(--padding);
+      		&.center {
+     			place-content: center;
+      		}
 
       		.cell {
       			display: grid;
       			place-items: center;
       			width: var(--cell-size);
       			height: var(--cell-size);
-      			border: 1px solid #222;
+         		overflow: hidden;
+         		
       		}
       	}
       	`;
@@ -69,11 +87,10 @@ class Tatrix {
 		injectStyles();
 
 		this.container.classList.add("tatrix-grid");
-		this.config = formatConfig(config);
+		this.config = config;
 		this.state = {};
 		this.cells = [];
 		this.setConfig(this.config);
-		this.updateLayout();
 	}
 
 	setConfig(cfg = {}) {
@@ -81,9 +98,23 @@ class Tatrix {
 		const config = formatConfig(cfg);
 		if (config === this.config) return;
 		this.config = config;
+		const dims = this._getDimensions();
+		const { rows, cols } = dims;
 
-		const { cellSize, padding, color } = config;
-		const { rows, cols } = this._getDimensions();
+		let { cellSize, padding, color, gap, center } = config;
+		cellSize = cellSize === "auto" ? dims.cellSize : cellSize;
+
+		const space = this._calculateGap(
+			padding,
+			cellSize,
+			rows,
+			cols,
+			padding === "auto",
+		);
+		
+		this.container.classList.toggle("center", center);
+
+		padding = padding === "auto" ? space : padding;
 
 		this.state = {
 			...this.state,
@@ -93,9 +124,9 @@ class Tatrix {
 			rows,
 			cols,
 			gap:
-				config.gap === "auto"
+				gap === "auto"
 					? this._calculateGap(padding, cellSize, rows, cols)
-					: config.gap,
+					: gap,
 		};
 
 		console.log(this.state);
@@ -136,8 +167,31 @@ class Tatrix {
 	_getDimensions() {
 		const { rows, cols, padding, cellSize } = this.config;
 
-		const availableW = this.container.clientWidth - padding * 2;
-		const availableH = this.container.clientHeight - padding * 2;
+		const pad = typeof padding === "number" ? padding : 0;
+
+		const availableW = this.container.clientWidth - pad * 2;
+		const availableH = this.container.clientHeight - pad * 2;
+
+		if (cellSize === "auto") {
+			const maxCellH =
+				typeof rows === "string" ? Infinity : availableH / rows;
+
+			const maxCellW =
+				typeof cols === "string" ? Infinity : availableW / cols;
+
+			const size = Math.floor(Math.min(maxCellH, maxCellW));
+
+			const gotRows =
+				rows === "fit" ? Math.floor(availableH / size) : rows;
+			const gotCols =
+				cols === "fit" ? Math.floor(availableW / size) : cols;
+
+			return {
+				rows: gotRows,
+				cols: gotCols,
+				cellSize: size,
+			};
+		}
 
 		const gotRows =
 			rows === "fit" ? Math.floor(availableH / cellSize) : rows;
@@ -147,17 +201,29 @@ class Tatrix {
 		return { rows: gotRows, cols: gotCols };
 	}
 
-	_calculateGap(padding, cellSize, rows, cols) {
-		if (rows <= 1 || cols <= 1) return 0;
+	_calculateGap(padding, cellSize, rows, cols, pad) {
+		if (rows <= 1 && cols <= 1) return 0;
 
-		const availableW = this.container.clientWidth - padding * 2;
-		const availableH = this.container.clientHeight - padding * 2;
+		const padded = pad ? 0 : padding;
+
+		const availableW = this.container.clientWidth - padded * 2;
+		const availableH = this.container.clientHeight - padded * 2;
 
 		const gapW = (availableW - cols * cellSize) / (cols - 1);
 		const gapH = (availableH - rows * cellSize) / (rows - 1);
-		const gap = Math.min(gapW, gapH);
-		return gap < 0.1 ? 0 : gap;
+
+		let gap = Math.min(gapW, gapH);
+		if (cols === 1) gap = gapH;
+		if (rows === 1) gap = gapW;
+
+		return gap < 0.3 ? 0 : gap;
 	}
 }
 
-const tatrix = new Tatrix("#grid");
+const tatrix = new Tatrix("#grid", {
+	cellSize: "auto",
+	cols: "fit",
+	rows: 10,
+	padding: "auto",
+	center: true,
+});
