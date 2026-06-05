@@ -16,7 +16,7 @@ function formatConfig(cfg = {}) {
 	rows = typeof rows === "number" ? Math.max(1, rows) : "fit";
 	cols = typeof cols === "number" ? Math.max(1, cols) : "fit";
 
-	gap = typeof gap === "number" ? Math.max(0.1, gap) : "auto";
+	gap = typeof gap === "number" ? Math.max(0, gap) : "auto";
 
 	cellSize =
 		typeof cellSize === "number"
@@ -75,13 +75,14 @@ function injectStyles() {
 			grid-template-columns: repeat(var(--cols), var(--cell-size));
 			color: var(--color);
 			gap: var(--gap);
-			padding: var(--padding);
+			padding: var(--padV) var(--padH);
 			overflow: hidden;
 			&.center {
 				place-content: center;
 			}
 
       		.cell {
+        		border: 1px solid red;
         		display: inline-flex;
         		align-items: center;
         		justify-content: center;
@@ -129,60 +130,50 @@ class Tatrix {
 	setConfig(cfg = {}) {
 		const config = formatConfig(cfg);
 		const lastState = this.state;
+		const {
+			rows: lastRows,
+			cols: lastCols,
+			overflow: lastOverflow,
+		} = lastState;
 
 		this.config = config;
 
 		const dims = this._getDimensions();
 		let { rows, cols } = dims;
 		let { cellSize, padding, color, gap, center, overflow } = config;
+
+		cellSize = cellSize === "auto" ? dims.cellSize : cellSize;
+
 		if (overflow) {
 			rows += 1;
 			cols += 1;
 		}
-		cellSize = cellSize === "auto" ? dims.cellSize : cellSize;
 
-		const space = this._calculateGap(
-			padding,
-			cellSize,
-			rows,
-			cols,
-			padding === "auto",
-		);
+		const {
+			gap: gapF,
+			padH,
+			padV,
+		} = this._calculateSpacing(padding, cellSize, rows, cols, gap);
 
 		this.container.classList.toggle("center", center);
-
-		padding = padding === "auto" ? space : padding;
 
 		this.state = {
 			...this.state,
 			cellSize,
-			padding,
 			color,
 			rows,
 			cols,
-			gap:
-				gap === "auto"
-					? this._calculateGap(padding, cellSize, rows, cols)
-					: gap,
+			overflow,
+			padH,
+			padV,
+			gap: gapF,
 		};
 
-		if (lastState.rows !== rows || lastState.cols !== cols)
+		console.log(this.state);
+
+		if (lastRows !== rows || lastCols !== cols || lastOverflow !== overflow)
 			this.rebuildCells();
 		this.updateCssVars();
-	}
-
-	resize() {
-		const { rows, cols } = this.state;
-		const { nRows, nCols } = this.config;
-
-		if (rows !== nRows || cols !== nCols) {
-			this.state = {
-				...this.state,
-				rows: nRows,
-				cols: nCols,
-			};
-			this.rebuildCells();
-		}
 	}
 
 	updateCssVars() {
@@ -193,17 +184,14 @@ class Tatrix {
 			`${this.state.cellSize}px`,
 		);
 		this.container.style.setProperty("--gap", `${this.state.gap}px`);
-		this.container.style.setProperty(
-			"--padding",
-			`${this.state.padding}px`,
-		);
+		this.container.style.setProperty("--padH", `${this.state.padH}px`);
+		this.container.style.setProperty("--padV", `${this.state.padV}px`);
 		this.container.style.setProperty("--color", this.state.color);
 	}
 
 	rebuildCells() {
 		this.container.innerHTML = "";
 		this.cells = [];
-		this.updateCssVars();
 
 		for (let i = 0; i < this.state.rows; i++) {
 			this.cells[i] = [];
@@ -220,10 +208,17 @@ class Tatrix {
 	_getDimensions() {
 		const { rows, cols, padding, cellSize } = this.config;
 
-		const pad = typeof padding === "number" ? padding : 0;
+		const padded = typeof padding === "number" ? padding : 0;
 
-		const availableW = this.container.clientWidth - pad * 2;
-		const availableH = this.container.clientHeight - pad * 2;
+		const availableW = Math.max(this.container.clientWidth - padded * 2, 0);
+		const availableH = Math.max(
+			this.container.clientHeight - padded * 2,
+			0,
+		);
+
+		if (!isFinite(availableW) || !isFinite(availableH)) {
+			return { rows: 1, cols: 1, cellSize: 10 };
+		}
 
 		if (cellSize === "auto") {
 			const maxCellH =
@@ -232,10 +227,18 @@ class Tatrix {
 			const maxCellW =
 				typeof cols === "string" ? Infinity : availableW / cols;
 
-			const size = Math.floor(Math.min(maxCellH, maxCellW));
+			let size = Math.floor(Math.min(maxCellH, maxCellW));
+
+			if (!isFinite(size) || size <= 0)
+				return {
+					rows: 0,
+					cols: 0,
+					cellSize: 0,
+				};
 
 			const gotRows =
 				rows === "fit" ? Math.floor(availableH / size) : rows;
+
 			const gotCols =
 				cols === "fit" ? Math.floor(availableW / size) : cols;
 
@@ -254,32 +257,52 @@ class Tatrix {
 		return { rows: gotRows, cols: gotCols };
 	}
 
-	_calculateGap(padding, cellSize, rows, cols, pad) {
-		if (rows <= 1 && cols <= 1) return 0;
+	_calculateSpacing(padding, cellSize, rows, cols, gapp) {
+		const autoPad = padding === "auto";
+		const padded = autoPad ? 0 : padding;
+		const gapped = gapp === "auto" ? 0 : gapp;
 
-		const padded = pad ? 0 : padding;
+		const availableW = Math.max(this.container.clientWidth - padded * 2, 0);
+		const availableH = Math.max(
+			this.container.clientHeight - padded * 2,
+			0,
+		);
 
-		const availableW = this.container.clientWidth - padded * 2;
-		const availableH = this.container.clientHeight - padded * 2;
+		const gapWidth = (cols - 1) * gapped;
+		const gapHeight = (rows - 1) * gapped;
 
-		const gapW = (availableW - cols * cellSize) / (cols - 1);
-		const gapH = (availableH - rows * cellSize) / (rows - 1);
+		let colsFormated = cols - 1;
+		let rowsFormated = rows - 1;
 
-		let gap = Math.min(gapW, gapH);
-		if (cols === 1) gap = gapH;
-		if (rows === 1) gap = gapW;
+		if (colsFormated == 0) colsFormated = 1;
+		if (rowsFormated == 0) rowsFormated = 1;
 
-		return gap < 0.3 ? 0 : gap;
+		const takenH = cols * cellSize + gapWidth;
+		const takenV = rows * cellSize + gapHeight;
+
+		const leftH = Math.max(availableW - takenH, 0);
+		const leftV = Math.max(availableH - takenV, 0);
+
+		const spaceH = leftH / (colsFormated + (autoPad ? 2 : 0));
+		const spaceV = leftV / (rowsFormated + (autoPad ? 2 : 0));
+
+		const gap = Math.max(spaceH, spaceV);
+
+		return {
+			gap: gapp === "auto" ? (gap < 0.2 ? 0 : gap) : gapp,
+			padH: autoPad ? spaceH : padded,
+			padV: autoPad ? spaceV : padded,
+		};
 	}
 }
 
 const tatrix = new Tatrix("#grid", {
 	cellSize: "auto",
-	cols: "fit",
-	rows: 10,
-	padding: "auto",
+	rows: "fit",
+	cols: 0,
 	center: true,
-	overflow: true,
+	overflow: false,
+	padding: 126,
 	chars: {
 		c: "1",
 	},
