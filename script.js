@@ -1,5 +1,16 @@
 function formatConfig(cfg = {}) {
-	let { rows, cols, gap, cellSize, padding, color, center } = cfg;
+	let {
+		rows,
+		cols,
+		gap,
+		cellSize,
+		padding,
+		color,
+		center,
+		overflow,
+		speed,
+		resize,
+	} = cfg;
 	let { t, b, l, r, c } = cfg.chars ?? {};
 
 	rows = typeof rows === "number" ? Math.max(1, rows) : "fit";
@@ -22,14 +33,17 @@ function formatConfig(cfg = {}) {
 				: "auto";
 
 	center = typeof center === "boolean" ? center : false;
+	overflow = typeof overflow === "boolean" ? overflow : false;
+	speed = typeof speed === "number" ? Math.max(0, speed) : 0;
+	resize = typeof resize === "boolean" ? resize : true;
 
-	if (typeof color !== "string") color = "#777";
+	if (typeof color !== "string") color = "#444";
 
 	if (typeof t !== "string") t = "│";
 	if (typeof b !== "string") b = "╱";
 	if (typeof l !== "string") l = "╲";
 	if (typeof r !== "string") r = "─";
-	if (typeof c !== "string") c = "☐";
+	if (typeof c !== "string") c = " ";
 
 	return {
 		rows,
@@ -39,6 +53,9 @@ function formatConfig(cfg = {}) {
 		padding,
 		color,
 		center,
+		overflow,
+		speed,
+		resize,
 		chars: { t, b, l, r, c },
 	};
 }
@@ -49,24 +66,31 @@ function injectStyles() {
 	const style = document.createElement("style");
 	style.id = "tatrix-styles";
 	style.textContent = `
-    	.tatrix-grid {
-      		display: grid;
-      		grid-template-rows: repeat(var(--rows), var(--cell-size));
-      		grid-template-columns: repeat(var(--cols), var(--cell-size));
-      		color: var(--color);
-      		gap: var(--gap);
-      		padding: var(--padding);
-      		&.center {
-     			place-content: center;
-      		}
+		@import url('https://fonts.googleapis.com/css2?family=LXGW+WenKai+Mono+TC&display=swap');
+
+		.tatrix-grid {
+			font-family: 'LXGW WenKai Mono TC';
+			display: grid;
+			grid-template-rows: repeat(var(--rows), var(--cell-size));
+			grid-template-columns: repeat(var(--cols), var(--cell-size));
+			color: var(--color);
+			gap: var(--gap);
+			padding: var(--padding);
+			overflow: hidden;
+			&.center {
+				place-content: center;
+			}
 
       		.cell {
-      			display: grid;
+        		display: inline-flex;
+        		align-items: center;
+        		justify-content: center;
+        		font-size: var(--cell-size);
       			place-items: center;
       			width: var(--cell-size);
       			height: var(--cell-size);
          		overflow: hidden;
-         		
+
       		}
       	}
       	`;
@@ -90,18 +114,31 @@ class Tatrix {
 		this.config = config;
 		this.state = {};
 		this.cells = [];
+		this.raf = null;
 		this.setConfig(this.config);
+
+		if (this.config.resize) {
+			this.observer = new ResizeObserver((entries) => {
+				for (const _ of entries) this.setConfig(this.config);
+			});
+
+			this.observer.observe(this.container);
+		}
 	}
 
 	setConfig(cfg = {}) {
-		if (cfg === null) return;
 		const config = formatConfig(cfg);
-		if (config === this.config) return;
-		this.config = config;
-		const dims = this._getDimensions();
-		const { rows, cols } = dims;
+		const lastState = this.state;
 
-		let { cellSize, padding, color, gap, center } = config;
+		this.config = config;
+
+		const dims = this._getDimensions();
+		let { rows, cols } = dims;
+		let { cellSize, padding, color, gap, center, overflow } = config;
+		if (overflow) {
+			rows += 1;
+			cols += 1;
+		}
 		cellSize = cellSize === "auto" ? dims.cellSize : cellSize;
 
 		const space = this._calculateGap(
@@ -111,7 +148,7 @@ class Tatrix {
 			cols,
 			padding === "auto",
 		);
-		
+
 		this.container.classList.toggle("center", center);
 
 		padding = padding === "auto" ? space : padding;
@@ -129,14 +166,26 @@ class Tatrix {
 					: gap,
 		};
 
-		console.log(this.state);
-		this.updateLayout();
+		if (lastState.rows !== rows || lastState.cols !== cols)
+			this.rebuildCells();
+		this.updateCssVars();
 	}
 
-	updateLayout() {
-		this.container.innerHTML = "";
-		this.cells = [];
+	resize() {
+		const { rows, cols } = this.state;
+		const { nRows, nCols } = this.config;
 
+		if (rows !== nRows || cols !== nCols) {
+			this.state = {
+				...this.state,
+				rows: nRows,
+				cols: nCols,
+			};
+			this.rebuildCells();
+		}
+	}
+
+	updateCssVars() {
 		this.container.style.setProperty("--rows", this.state.rows);
 		this.container.style.setProperty("--cols", this.state.cols);
 		this.container.style.setProperty(
@@ -149,15 +198,19 @@ class Tatrix {
 			`${this.state.padding}px`,
 		);
 		this.container.style.setProperty("--color", this.state.color);
+	}
+
+	rebuildCells() {
+		this.container.innerHTML = "";
+		this.cells = [];
+		this.updateCssVars();
 
 		for (let i = 0; i < this.state.rows; i++) {
 			this.cells[i] = [];
 			for (let j = 0; j < this.state.cols; j++) {
 				const cell = document.createElement("span");
-				// const span = document.createElement("span");
-				cell.textContent = `${i},${j}`;
+				cell.textContent = this.config.chars.c;
 				cell.classList.add(`c${i}${j}`, "cell");
-				// cell.appendChild(span);
 				this.container.appendChild(cell);
 				this.cells[i].push(cell);
 			}
@@ -226,4 +279,8 @@ const tatrix = new Tatrix("#grid", {
 	rows: 10,
 	padding: "auto",
 	center: true,
+	overflow: true,
+	chars: {
+		c: "1",
+	},
 });
