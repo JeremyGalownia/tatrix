@@ -13,8 +13,8 @@ function formatConfig(cfg = {}) {
 	} = cfg;
 	let { t, b, l, r, c } = cfg.chars ?? {};
 
-	rows = typeof rows === "number" ? Math.max(1, rows) : "fit";
-	cols = typeof cols === "number" ? Math.max(1, cols) : "fit";
+	rows = typeof rows === "number" ? Math.max(1, rows) : "auto";
+	cols = typeof cols === "number" ? Math.max(1, cols) : "auto";
 
 	gap = typeof gap === "number" ? Math.max(0, gap) : "auto";
 
@@ -77,12 +77,9 @@ function injectStyles() {
 			}
 
       		.cell {
-        		border: 1px solid red;
-        		display: inline-flex;
-        		align-items: center;
-        		justify-content: center;
+        		display: inline-grid;
+        		place-content: center;
         		font-size: var(--cell-size);
-      			place-items: center;
       			width: var(--cell-size);
       			height: var(--cell-size);
          		overflow: hidden;
@@ -164,7 +161,7 @@ class Tatrix {
 			gap: gapF,
 		};
 
-		console.log(this.state);
+		console.log(this.state, this.config);
 
 		if (lastRows !== rows || lastCols !== cols || lastOverflow !== overflow)
 			this.rebuildCells();
@@ -217,10 +214,14 @@ class Tatrix {
 
 		if (cellSize === "auto") {
 			const maxCellH =
-				typeof rows === "string" ? Infinity : Math.min(availableH / rows, availableW / rows);
+				typeof rows === "string"
+					? Infinity
+					: Math.min(availableH / rows, availableW / rows);
 
 			const maxCellW =
-				typeof cols === "string" ? Infinity : Math.min(availableW / cols, availableH / cols);
+				typeof cols === "string"
+					? Infinity
+					: Math.min(availableW / cols, availableH / cols);
 
 			let size = Math.floor(Math.min(maxCellH, maxCellW));
 
@@ -232,10 +233,10 @@ class Tatrix {
 				};
 
 			const gotRows =
-				rows === "fit" ? Math.floor(availableH / size) : rows;
+				rows === "auto" ? Math.floor(availableH / size) : rows;
 
 			const gotCols =
-				cols === "fit" ? Math.floor(availableW / size) : cols;
+				cols === "auto" ? Math.floor(availableW / size) : cols;
 
 			console.log({
 				gotRows,
@@ -255,9 +256,9 @@ class Tatrix {
 		}
 
 		const gotRows =
-			rows === "fit" ? Math.floor(availableH / cellSize) : rows;
+			rows === "auto" ? Math.floor(availableH / cellSize) : rows;
 		const gotCols =
-			cols === "fit" ? Math.floor(availableW / cellSize) : cols;
+			cols === "auto" ? Math.floor(availableW / cellSize) : cols;
 
 		return { rows: gotRows, cols: gotCols };
 	}
@@ -303,14 +304,12 @@ class Tatrix {
 
 const tatrix = new Tatrix("#grid", {
 	cellSize: "auto",
-	cols: "fit",
-	rows: 0,
 	center: true,
 	overflow: false,
-	padding: 10,
-	chars: {
-		c: "1",
-	},
+	cellSize: 10,
+	// chars: {
+	// 	c: "1",
+	// },
 });
 
 //grid-template-rows: repeat(auto-fit, minmax(var(--cell-size), 1fr));
