@@ -10,6 +10,7 @@ function formatConfig(cfg = {}) {
 		overflow,
 		speed,
 		resize,
+		border,
 	} = cfg;
 	let { t, b, l, r, c } = cfg.chars ?? {};
 
@@ -31,6 +32,7 @@ function formatConfig(cfg = {}) {
 	overflow = typeof overflow === "boolean" ? overflow : false;
 	speed = typeof speed === "number" ? Math.max(0, speed) : 0;
 	resize = typeof resize === "boolean" ? resize : true;
+	border = typeof border === "string" ? border : "unset";
 
 	if (typeof color !== "string") color = "#444";
 
@@ -51,6 +53,7 @@ function formatConfig(cfg = {}) {
 		overflow,
 		speed,
 		resize,
+		border,
 		chars: { t, b, l, r, c },
 	};
 }
@@ -77,6 +80,7 @@ function injectStyles() {
 			}
 
       		.cell {
+        		border: var(--border);
         		display: inline-grid;
         		place-content: center;
         		font-size: var(--cell-size);
@@ -108,6 +112,7 @@ class Tatrix {
 		this.state = {};
 		this.cells = [];
 		this.raf = null;
+		this.running = false;
 		this.setConfig(this.config);
 
 		if (this.config.resize) {
@@ -117,6 +122,11 @@ class Tatrix {
 
 			this.observer.observe(this.container);
 		}
+	}
+
+	updateConfig(cfg = {}) {
+		const config = formatConfig({ ...this.config, ...cfg });
+		this.setConfig(config);
 	}
 
 	setConfig(cfg = {}) {
@@ -132,13 +142,14 @@ class Tatrix {
 
 		const dims = this._getDimensions();
 		let { rows, cols } = dims;
-		let { cellSize, padding, color, gap, center, overflow } = config;
+		let { cellSize, padding, color, gap, center, overflow, border } =
+			config;
 
 		cellSize = cellSize === "auto" ? dims.cellSize : cellSize;
 
 		if (overflow) {
-			rows += 1;
-			cols += 1;
+			rows += 2;
+			cols += 2;
 		}
 
 		const {
@@ -158,18 +169,18 @@ class Tatrix {
 			overflow,
 			padH,
 			padV,
+			border,
 			gap: gapF,
 		};
 
-		console.log(this.state, this.config);
-
 		if (lastRows !== rows || lastCols !== cols || lastOverflow !== overflow)
-			this.rebuildCells();
+			this.rebuildCells(lastState);
 		this.updateCssVars();
 	}
 
 	updateCssVars() {
 		this.container.style.setProperty("--rows", this.state.rows);
+		this.container.style.setProperty("--border", this.state.border);
 		this.container.style.setProperty("--cols", this.state.cols);
 		this.container.style.setProperty(
 			"--cell-size",
@@ -181,7 +192,31 @@ class Tatrix {
 		this.container.style.setProperty("--color", this.state.color);
 	}
 
-	rebuildCells() {
+	rebuildCells(lastState) {
+		const lastRows = lastState?.rows ?? 0;
+		const lastCols = lastState?.cols ?? 0;
+
+		const diffRows = this.state.rows - lastRows; // now - before = diff. if negative, we need to remove rows
+		const diffCols = this.state.cols - lastCols; // same as above
+
+		if (diffRows < 0) {
+			for (let i = this.state.rows; i < lastRows; i++) {
+				const row = this.cells.pop();
+				for (const cell of row) cell.remove();
+			}
+			console.log("removed rows");
+		}
+		if (diffCols < 0) {
+			for (let i = 0; i < -diffCols; i++) {
+				for (const row of this.cells) row.shift().remove();
+			}
+			console.log("removed cols");
+		}
+
+		if (diffCols < 0 || diffRows < 0) return console.log("done no making");
+
+		console.log("making");
+
 		this.container.innerHTML = "";
 		this.cells = [];
 
@@ -190,11 +225,12 @@ class Tatrix {
 			for (let j = 0; j < this.state.cols; j++) {
 				const cell = document.createElement("span");
 				cell.textContent = this.config.chars.c;
-				cell.classList.add(`c${i}${j}`, "cell");
+				cell.classList.add(`c${i}-${j}`, "cell");
 				this.container.appendChild(cell);
 				this.cells[i].push(cell);
 			}
 		}
+		console.log("made");
 	}
 
 	_getDimensions() {
@@ -237,16 +273,6 @@ class Tatrix {
 
 			const gotCols =
 				cols === "auto" ? Math.floor(availableW / size) : cols;
-
-			console.log({
-				gotRows,
-				gotCols,
-				size,
-				maxCellH,
-				maxCellW,
-				availableW,
-				availableH,
-			});
 
 			return {
 				rows: gotRows,
@@ -302,15 +328,12 @@ class Tatrix {
 	}
 }
 
-const tatrix = new Tatrix("#grid", {
-	cellSize: "auto",
+window.tatrix = new Tatrix("#grid", {
+	cellSize: 35,
+	rows: 10,
+	cols: 10,
 	center: true,
-	overflow: false,
-	cellSize: 10,
-	// chars: {
-	// 	c: "1",
-	// },
+	overflow: true,
+	gap: 0,
+	border: "1px solid #222",
 });
-
-//grid-template-rows: repeat(auto-fit, minmax(var(--cell-size), 1fr));
-// grid-template-columns: repeat(auto-fit, minmax(var(--cell-size), 1fr));
