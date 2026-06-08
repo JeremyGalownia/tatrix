@@ -113,7 +113,7 @@ class Tatrix {
 		this.cells = [];
 		this.raf = null;
 		this.running = false;
-		this.setConfig(this.config);
+		this.setConfig(this.config, true);
 
 		if (this.config.resize) {
 			this.observer = new ResizeObserver((entries) => {
@@ -129,7 +129,7 @@ class Tatrix {
 		this.setConfig(config);
 	}
 
-	setConfig(cfg = {}) {
+	setConfig(cfg = {}, rebuild = false) {
 		const config = formatConfig(cfg);
 		const lastState = this.state;
 		const {
@@ -173,9 +173,14 @@ class Tatrix {
 			gap: gapF,
 		};
 
-		if (lastRows !== rows || lastCols !== cols || lastOverflow !== overflow)
-			this.rebuildCells(lastState);
 		this.updateCssVars();
+		if (rebuild) this.rebuildCells();
+		else if (
+			lastRows !== rows ||
+			lastCols !== cols ||
+			lastOverflow !== overflow
+		)
+			this.updateCells(lastState);
 	}
 
 	updateCssVars() {
@@ -192,31 +197,7 @@ class Tatrix {
 		this.container.style.setProperty("--color", this.state.color);
 	}
 
-	rebuildCells(lastState) {
-		const lastRows = lastState?.rows ?? 0;
-		const lastCols = lastState?.cols ?? 0;
-
-		const diffRows = this.state.rows - lastRows; // now - before = diff. if negative, we need to remove rows
-		const diffCols = this.state.cols - lastCols; // same as above
-
-		if (diffRows < 0) {
-			for (let i = this.state.rows; i < lastRows; i++) {
-				const row = this.cells.pop();
-				for (const cell of row) cell.remove();
-			}
-			console.log("removed rows");
-		}
-		if (diffCols < 0) {
-			for (let i = 0; i < -diffCols; i++) {
-				for (const row of this.cells) row.shift().remove();
-			}
-			console.log("removed cols");
-		}
-
-		if (diffCols < 0 || diffRows < 0) return console.log("done no making");
-
-		console.log("making");
-
+	rebuildCells() {
 		this.container.innerHTML = "";
 		this.cells = [];
 
@@ -230,7 +211,71 @@ class Tatrix {
 				this.cells[i].push(cell);
 			}
 		}
-		console.log("made");
+	}
+
+	updateCells(lastState) {
+		const lastRows = lastState?.rows ?? 0;
+		const lastCols = lastState?.cols ?? 0;
+
+		const currRows = this.state.rows;
+		const currCols = this.state.cols;
+
+		const diffRows = currRows - lastRows;
+		const diffCols = currCols - lastCols;
+
+		if (diffRows < 0)
+			for (let i = currRows; i < lastRows; i++)
+				for (const cell of this.cells.pop()) cell.remove();
+
+		if (diffCols < 0)
+			for (let i = 0; i < -diffCols; i++)
+				for (const row of this.cells) row.pop().remove();
+
+		if (diffRows > 0) {
+			const frag = document.createDocumentFragment();
+			for (let i = lastRows; i < currRows; i++) {
+				this.cells.push([]);
+				const row = [];
+				for (let c = 0; c < currCols; c++) {
+					const cell = document.createElement("span");
+					cell.textContent = this.config.chars.c;
+					cell.classList.add(
+						`c${this.cells.length - 1}-${c}`,
+						"cell",
+					);
+					frag.appendChild(cell);
+					row.push(cell);
+				}
+
+				this.cells.push(row);
+			}
+			this.container.appendChild(frag);
+		}
+
+		if (diffCols > 0) {
+			for (let r = 0; r < this.cells.length; r++) {
+				const row = this.cells[r];
+
+				for (let i = 0; i < diffCols; i++) {
+					const cell = document.createElement("span");
+					cell.textContent = this.config.chars.c;
+					cell.className = `c${r}-${i + lastCols} cell`;
+
+					const ref = this._getInsertBefore(r, i + lastCols);
+
+					this.container.insertBefore(cell, ref);
+					row.push(cell);
+				}
+			}
+		}
+	}
+
+	_getInsertBefore(rowIndex, colIndex) {
+		const rows = this.cells.length;
+		const cols = this.cells[0]?.length ?? 0;
+
+		const flatIndex = rowIndex * cols + colIndex;
+		return this.container.children[flatIndex] || null;
 	}
 
 	_getDimensions() {
@@ -329,9 +374,9 @@ class Tatrix {
 }
 
 window.tatrix = new Tatrix("#grid", {
-	cellSize: 35,
-	rows: 10,
-	cols: 10,
+	cellSize: 50,
+	rows: 4,
+	cols: 4,
 	center: true,
 	overflow: true,
 	gap: 0,
